@@ -8,7 +8,7 @@
  *     stores serialised JSON values (seed, player state, etc.).
  */
 
-const DB_NAME = 'mycraft-world';
+const DB_NAME = 'neocraft-world';
 const DB_VERSION = 1;
 const STORE_CHUNKS = 'chunks';
 const STORE_META = 'meta';

@@ -1,4 +1,4 @@
-# MyCraft
+# NeoCraft
 
 A single-player, browser-based Minecraft clone built with **Three.js + TypeScript + Vite**. All assets are generated programmatically at runtime -- zero external images, models, or sounds.
 
@@ -119,7 +119,7 @@ Open `http://localhost:5173/` in your browser. Click the canvas to lock the poin
 The game saves to IndexedDB. If you have a stale save from an older version, clear it:
 1. Open browser DevTools (F12)
 2. Go to **Application** > **Storage** > **IndexedDB**
-3. Delete the `mycraft` database
+3. Delete the `neocraft` database
 4. Refresh the page -- you'll get a fresh world with starter items
 
 **Right-click doesn't place blocks:**
