@@ -37,7 +37,7 @@ import { BiomeMap } from './terrain/BiomeMap';
 import { BlockType } from './types/BlockType';
 import { ToolType, ToolTier } from './items/Item';
 import { itemRegistry } from './items/ItemRegistry';
-import { SEA_LEVEL, REACH_DISTANCE } from './utils/Constants';
+import { SEA_LEVEL, REACH_DISTANCE, MAX_AIR } from './utils/Constants';
 import { eventBus } from './utils/EventBus';
 import { soundManager } from './engine/SoundManager';
 
@@ -81,6 +81,10 @@ export class Game {
   private prevGrounded = false;
   /** Cooldown after attacking a mob (prevents mining + attack spam). */
   private attackCooldown = 0;
+  /** Accumulator for air depletion ticks (1 air unit per 0.05s = 20/sec). */
+  private airTickAccum = 0;
+  /** Accumulator for drowning damage ticks (2 damage per second). */
+  private drownDmgAccum = 0;
   /** Reusable Three.js raycaster for mob hit detection. */
   private readonly raycaster = new THREE.Raycaster();
 
@@ -398,8 +402,10 @@ export class Game {
       this.playerController.update(dt, this.player, this.engine.camera);
       this.playerPhysics.update(dt, this.player, this.world);
 
-      // Fall damage & landing sounds
-      const fallDmg = this.fallDamage.update(this.player, this.player.grounded);
+      // Fall damage & landing sounds (water cancels fall damage)
+      const fallDmg = this.player.inWater
+        ? (this.fallDamage.update(this.player, true), 0) // reset tracker, no damage
+        : this.fallDamage.update(this.player, this.player.grounded);
       if (fallDmg > 0) {
         this.player.health = Math.max(0, this.player.health - fallDmg);
         soundManager.playHurt();
@@ -408,6 +414,32 @@ export class Game {
         soundManager.playLand(fallDmg > 0 ? 1.0 : 0.3);
       }
       this.prevGrounded = this.player.grounded;
+
+      // Drowning -- deplete air when head is submerged, damage when out of air
+      if (this.player.headSubmerged) {
+        this.airTickAccum += dt;
+        while (this.airTickAccum >= 0.05) {
+          this.airTickAccum -= 0.05;
+          if (this.player.air > 0) {
+            this.player.air--;
+          }
+        }
+        if (this.player.air <= 0) {
+          this.drownDmgAccum += dt;
+          while (this.drownDmgAccum >= 0.5) {
+            this.drownDmgAccum -= 0.5;
+            this.player.health = Math.max(0, this.player.health - 2);
+            soundManager.playHurt();
+          }
+        }
+      } else {
+        // Replenish air quickly when head is above water
+        this.airTickAccum = 0;
+        this.drownDmgAccum = 0;
+        if (this.player.air < MAX_AIR) {
+          this.player.air = Math.min(MAX_AIR, this.player.air + Math.ceil(dt * 60));
+        }
+      }
 
       // Mob attack (left-click on mob)
       this.attackCooldown = Math.max(0, this.attackCooldown - dt);

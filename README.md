@@ -40,6 +40,7 @@ Open `http://localhost:5173/` in your browser. Click the canvas to lock the poin
 - **Block drops** -- broken blocks spawn 3D item entities that bob, spin, and are picked up on proximity
 - **Tool durability** -- tools wear down with use and break when depleted; durability bars in hotbar/inventory
 - **Inventory system** -- 36-slot inventory with drag-and-drop
+- **Swimming & drowning** -- water drag and buoyancy physics, reduced movement speed, air bubble meter, drowning damage when submerged
 - **Food system** -- eat raw/cooked food to restore hunger; passive health regen when well-fed; starvation damage
 - **Crafting** -- 2x2 (inventory) and 3x3 (crafting table) grids with 26 recipes
 - **Furnace smelting** -- smelt ores into ingots and cook raw food; real-time fuel/progress system
@@ -170,6 +171,7 @@ Deployment to GitHub Pages is automatic via `.github/workflows/deploy.yml` on pu
 - [x] Per-block lighting engine -- sunlight propagation, torch BFS flood-fill, Minecraft-style face shading
 - [x] Structure generation -- desert wells, wooden cabins with furnishing, underground cobblestone dungeons
 - [x] Jungle & swamp biomes -- tall jungle trees, jungle wood/leaves blocks, swamp vegetation, Whittaker-diagram classification
+- [x] Swimming & drowning -- water drag, buoyancy, air bubble HUD, drowning damage, fall damage cancellation in water
 
 ### Mid-term
 

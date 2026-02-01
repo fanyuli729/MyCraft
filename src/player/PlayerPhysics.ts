@@ -1,7 +1,14 @@
 import * as THREE from 'three';
 import { Player } from '@/player/Player';
 import { CollisionResolver } from '@/physics/CollisionResolver';
-import { GRAVITY, TERMINAL_VELOCITY } from '@/utils/Constants';
+import {
+  GRAVITY,
+  TERMINAL_VELOCITY,
+  WATER_GRAVITY,
+  WATER_DRAG,
+  PLAYER_EYE_HEIGHT,
+} from '@/utils/Constants';
+import { BlockType } from '@/types/BlockType';
 import type { World } from '@/world/World';
 
 /**
@@ -24,12 +31,35 @@ export class PlayerPhysics {
     // Clamp dt to avoid physics explosions on frame spikes.
     const clampedDt = Math.min(dt, 0.05);
 
-    // ----- Apply gravity -----
-    player.velocity.y += GRAVITY * clampedDt;
+    // ----- Detect water immersion -----
+    const feetX = Math.floor(player.position.x);
+    const feetY = Math.floor(player.position.y);
+    const feetZ = Math.floor(player.position.z);
+    const eyeY = Math.floor(player.position.y + PLAYER_EYE_HEIGHT);
 
-    // Clamp to terminal velocity
-    if (player.velocity.y < TERMINAL_VELOCITY) {
-      player.velocity.y = TERMINAL_VELOCITY;
+    player.inWater = world.getBlock(feetX, feetY, feetZ) === BlockType.WATER;
+    player.headSubmerged = world.getBlock(feetX, eyeY, feetZ) === BlockType.WATER;
+
+    if (player.inWater) {
+      // ----- Water physics -----
+      player.velocity.y += WATER_GRAVITY * clampedDt;
+
+      // Apply horizontal drag
+      player.velocity.x *= WATER_DRAG;
+      player.velocity.z *= WATER_DRAG;
+
+      // Clamp sinking speed (slower terminal velocity in water)
+      if (player.velocity.y < -4) {
+        player.velocity.y = -4;
+      }
+    } else {
+      // ----- Normal gravity -----
+      player.velocity.y += GRAVITY * clampedDt;
+
+      // Clamp to terminal velocity
+      if (player.velocity.y < TERMINAL_VELOCITY) {
+        player.velocity.y = TERMINAL_VELOCITY;
+      }
     }
 
     // ----- Scale velocity by dt to get per-frame displacement -----

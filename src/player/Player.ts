@@ -7,6 +7,7 @@ import {
   MAX_HEALTH,
   MAX_HUNGER,
   MAX_ARMOR,
+  MAX_AIR,
 } from '@/utils/Constants';
 
 /**
@@ -64,6 +65,19 @@ export class Player {
 
   /** True while the player is sneaking (shift held). */
   sneaking = false;
+
+  // -----------------------------------------------------------------------
+  // Water / swimming state
+  // -----------------------------------------------------------------------
+
+  /** True when the player's feet are inside a water block. */
+  inWater = false;
+
+  /** True when the player's eyes are submerged in water. */
+  headSubmerged = false;
+
+  /** Remaining air supply (0 .. {@link MAX_AIR}). Depletes when head is submerged. */
+  air: number = MAX_AIR;
 
   // -----------------------------------------------------------------------
   // Inventory

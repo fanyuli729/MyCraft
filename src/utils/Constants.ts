@@ -13,6 +13,11 @@ export const PLAYER_WIDTH = 0.6;
 export const PLAYER_HEIGHT = 1.8;
 export const PLAYER_EYE_HEIGHT = 1.62;
 export const TERMINAL_VELOCITY = -78.4;
+export const SWIM_SPEED = 2.0;
+export const WATER_GRAVITY = -4.0;
+export const WATER_DRAG = 0.85;
+export const SWIM_UP_VELOCITY = 3.5;
+export const MAX_AIR = 300; // 15 seconds at 20 ticks/sec
 
 // Player
 export const MAX_HEALTH = 20;

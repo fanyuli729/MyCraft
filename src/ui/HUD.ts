@@ -1,4 +1,4 @@
-import { MAX_HEALTH, MAX_HUNGER, MAX_ARMOR } from '@/utils/Constants';
+import { MAX_HEALTH, MAX_HUNGER, MAX_ARMOR, MAX_AIR } from '@/utils/Constants';
 import type { Player } from '@/player/Player';
 
 // ---------------------------------------------------------------------------
@@ -57,6 +57,21 @@ const HUNGER_EMPTY: Palette = { 1: '#3E2400', 2: '#553818', 3: '#7A6840' };
 const ARMOR_FULL: Palette  = { 1: '#2A2A2A', 2: '#A0A0A0', 3: '#D0D0D0' };
 const ARMOR_EMPTY: Palette = { 1: '#2A2A2A', 2: '#444444', 3: '#555555' };
 
+const BUBBLE_FULL: Palette  = { 1: '#1a3a6a', 2: '#3399ee', 3: '#88ccff' };
+const BUBBLE_EMPTY: Palette = { 1: '#1a3a6a', 2: '#1a3a6a', 3: '#2a4a7a' };
+
+const BUBBLE: number[][] = [
+  [0, 0, 0, 1, 1, 1, 0, 0, 0],
+  [0, 0, 1, 2, 2, 2, 1, 0, 0],
+  [0, 1, 2, 3, 3, 2, 2, 1, 0],
+  [1, 2, 3, 3, 2, 2, 2, 2, 1],
+  [1, 2, 3, 2, 2, 2, 2, 2, 1],
+  [1, 2, 2, 2, 2, 2, 2, 2, 1],
+  [0, 1, 2, 2, 2, 2, 2, 1, 0],
+  [0, 0, 1, 2, 2, 2, 1, 0, 0],
+  [0, 0, 0, 1, 1, 1, 0, 0, 0],
+];
+
 // ---------------------------------------------------------------------------
 // HUD class
 // ---------------------------------------------------------------------------
@@ -77,7 +92,9 @@ export class HUD {
   private healthIcons: HTMLElement[] = [];
   private hungerIcons: HTMLElement[] = [];
   private armorIcons: HTMLElement[] = [];
+  private airIcons: HTMLElement[] = [];
   private armorRow!: HTMLElement;
+  private airRow!: HTMLElement;
   private xpFill!: HTMLElement;
   private xpLevel!: HTMLElement;
 
@@ -97,6 +114,16 @@ export class HUD {
     this.setBar(this.hungerIcons, player.hunger, MAX_HUNGER, 'hunger');
     this.setBar(this.armorIcons, player.armor, MAX_ARMOR, 'armor');
     this.armorRow.style.display = player.armor > 0 ? 'flex' : 'none';
+
+    // Air bubbles -- visible only when head is submerged
+    if (player.headSubmerged) {
+      this.airRow.style.display = 'flex';
+      // Map air (0..300) to icon scale (0..20) for the standard setBar
+      const airScaled = Math.ceil((player.air / MAX_AIR) * 20);
+      this.setBar(this.airIcons, airScaled, 20, 'air');
+    } else {
+      this.airRow.style.display = 'none';
+    }
 
     const pct = Math.max(0, Math.min(1, player.experienceProgress)) * 100;
     this.xpFill.style.width = `${pct}%`;
@@ -123,6 +150,9 @@ export class HUD {
       armor_full:   this.renderIcon(SHIELD, ARMOR_FULL),
       armor_half:   this.renderIcon(SHIELD, ARMOR_FULL, ARMOR_EMPTY, HUD.SPLIT_COL),
       armor_empty:  this.renderIcon(SHIELD, ARMOR_EMPTY),
+      air_full:     this.renderIcon(BUBBLE, BUBBLE_FULL),
+      air_half:     this.renderIcon(BUBBLE, BUBBLE_FULL, BUBBLE_EMPTY, HUD.SPLIT_COL),
+      air_empty:    this.renderIcon(BUBBLE, BUBBLE_EMPTY),
     };
   }
 
@@ -175,6 +205,18 @@ export class HUD {
     this.armorRow.className = 'xc-icon-row';
     this.armorIcons = this.makeIconRow(this.armorRow, 'armor');
     area.appendChild(this.armorRow);
+
+    // Air bubbles row (right-aligned, above hunger -- hidden when not submerged)
+    const airSplit = document.createElement('div');
+    airSplit.className = 'xc-bar-split';
+    const airSpacer = document.createElement('div');
+    airSplit.appendChild(airSpacer);
+    this.airRow = document.createElement('div');
+    this.airRow.className = 'xc-icon-row xc-icon-rtl';
+    this.airRow.style.display = 'none';
+    this.airIcons = this.makeIconRow(this.airRow, 'air');
+    airSplit.appendChild(this.airRow);
+    area.appendChild(airSplit);
 
     // Health + Hunger split row
     const split = document.createElement('div');

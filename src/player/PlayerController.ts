@@ -5,6 +5,8 @@ import {
   PLAYER_SPEED,
   SPRINT_MULTIPLIER,
   JUMP_VELOCITY,
+  SWIM_SPEED,
+  SWIM_UP_VELOCITY,
 } from '@/utils/Constants';
 
 /** Mouse sensitivity (radians per pixel of mouse movement). */
@@ -88,10 +90,10 @@ export class PlayerController {
     if (inputManager.isKeyDown('a') || inputManager.isKeyDown('arrowleft')) strafe -= 1;
     if (inputManager.isKeyDown('d') || inputManager.isKeyDown('arrowright')) strafe += 1;
 
-    // Speed modifiers
-    let speed = PLAYER_SPEED;
-    if (player.sprinting) speed *= SPRINT_MULTIPLIER;
-    if (player.sneaking) speed *= SNEAK_MULTIPLIER;
+    // Speed modifiers -- swimming uses a slower base speed
+    let speed = player.inWater ? SWIM_SPEED : PLAYER_SPEED;
+    if (!player.inWater && player.sprinting) speed *= SPRINT_MULTIPLIER;
+    if (player.sneaking && !player.inWater) speed *= SNEAK_MULTIPLIER;
 
     // Compute world-space direction from yaw only (horizontal movement).
     const sinYaw = Math.sin(player.yaw);
@@ -114,6 +116,16 @@ export class PlayerController {
   }
 
   private handleJump(player: Player): void {
+    if (player.inWater) {
+      // Swimming: space = swim upward, shift = sink
+      if (inputManager.isKeyDown(' ')) {
+        player.velocity.y = SWIM_UP_VELOCITY;
+      } else if (inputManager.isKeyDown('shift')) {
+        player.velocity.y = -SWIM_UP_VELOCITY;
+      }
+      return;
+    }
+
     if (player.grounded && inputManager.isKeyDown(' ')) {
       player.velocity.y = JUMP_VELOCITY;
       player.grounded = false;
@@ -138,10 +150,11 @@ export class PlayerController {
       this.lastWPress = now;
     }
 
-    // Stop sprinting when W is released or player is sneaking or not moving forward.
+    // Stop sprinting when W is released, sneaking, or in water.
     if (
       !inputManager.isKeyDown('w') ||
-      player.sneaking
+      player.sneaking ||
+      player.inWater
     ) {
       player.sprinting = false;
     }
