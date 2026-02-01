@@ -9,6 +9,7 @@ import { BlockInfo } from '@/world/ChunkMesher';
 import { SceneManager } from '@/rendering/SceneManager';
 import { createChunkMaterial, createTransparentChunkMaterial } from '@/rendering/ChunkMaterial';
 import { createAtlasTexture, getTextureIndex } from '@/rendering/TextureAtlas';
+import { calculateLight } from '@/world/LightEngine';
 
 // ---------------------------------------------------------------------------
 // Transferable mesh data (mirrors ChunkMeshWorker output)
@@ -19,6 +20,7 @@ interface TransferableMeshData {
   normals: ArrayBuffer;
   uvs: ArrayBuffer;
   aos: ArrayBuffer;
+  lights: ArrayBuffer;
   indices: ArrayBuffer;
   vertexCount: number;
   indexCount: number;
@@ -54,6 +56,12 @@ export class ChunkManager {
   /** Pre-computed block info array that is sent to workers. */
   private blockInfo: BlockInfo[];
 
+  /** Per-block-type transparency flags for the light engine. */
+  private isTransparent: boolean[];
+
+  /** Per-block-type light emission values for the light engine. */
+  private emissions: number[];
+
   /** Shared materials. */
   private opaqueMaterial: THREE.ShaderMaterial;
   private transparentMaterial: THREE.ShaderMaterial;
@@ -80,6 +88,10 @@ export class ChunkManager {
 
     // Build the block info array for workers
     this.blockInfo = this.buildBlockInfo();
+
+    // Build light engine lookup tables
+    this.isTransparent = this.blockInfo.map((b) => b.transparent);
+    this.emissions = this.blockInfo.map((b) => b.lightEmission);
 
     // Create the worker pool using Vite's worker import pattern
     this.workerPool = new WorkerPool(
@@ -144,6 +156,9 @@ export class ChunkManager {
     const lz = ((wz % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
     chunk.setBlock(lx, wy, lz, type);
 
+    // Recalculate lighting for this chunk
+    calculateLight(chunk.data, chunk.light, this.isTransparent, this.emissions);
+
     // Mark neighbouring chunks dirty if the block is on a boundary
     if (lx === 0) this.markDirty(cx - 1, cz);
     if (lx === CHUNK_SIZE - 1) this.markDirty(cx + 1, cz);
@@ -185,6 +200,7 @@ export class ChunkManager {
           if (this.generateChunk) {
             this.generateChunk(chunk);
           }
+          calculateLight(chunk.data, chunk.light, this.isTransparent, this.emissions);
           this.chunks.set(key, chunk);
         }
 
@@ -272,6 +288,7 @@ export class ChunkManager {
             if (this.generateChunk) {
               this.generateChunk(chunk);
             }
+            calculateLight(chunk.data, chunk.light, this.isTransparent, this.emissions);
             this.chunks.set(key, chunk);
             generated++;
           }
@@ -316,20 +333,23 @@ export class ChunkManager {
     this.meshingInProgress.add(key);
     chunk.dirty = false;
 
-    // Gather neighbour block data
+    // Gather neighbour block data and light data
     const neighborKeys: [number, number][] = [
       [-1, 0], [1, 0], [0, -1], [0, 1],
     ];
     const neighbors: { [k: string]: ArrayBuffer | null } = {};
+    const neighborLights: { [k: string]: ArrayBuffer | null } = {};
     for (const [dx, dz] of neighborKeys) {
       const nk = chunkKey(chunk.cx + dx, chunk.cz + dz);
       const nc = this.chunks.get(nk);
       // Copy the buffer so the main thread retains its copy
       neighbors[`${dx},${dz}`] = nc ? (nc.data.buffer as ArrayBuffer).slice(0) : null;
+      neighborLights[`${dx},${dz}`] = nc ? (nc.light.buffer as ArrayBuffer).slice(0) : null;
     }
 
-    // Copy own blocks
+    // Copy own blocks and light
     const blocksCopy = (chunk.data.buffer as ArrayBuffer).slice(0);
+    const lightCopy = (chunk.light.buffer as ArrayBuffer).slice(0);
 
     const message = {
       type: 'mesh',
@@ -337,12 +357,17 @@ export class ChunkManager {
       chunkZ: chunk.cz,
       blocks: blocksCopy,
       neighbors,
+      light: lightCopy,
+      neighborLights,
       blockInfo: this.blockInfo,
     };
 
     // Transfer the copied buffers
-    const transferList: Transferable[] = [blocksCopy];
+    const transferList: Transferable[] = [blocksCopy, lightCopy];
     for (const buf of Object.values(neighbors)) {
+      if (buf) transferList.push(buf);
+    }
+    for (const buf of Object.values(neighborLights)) {
       if (buf) transferList.push(buf);
     }
 
@@ -398,6 +423,7 @@ export class ChunkManager {
     geometry.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(data.normals), 3));
     geometry.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(data.uvs), 2));
     geometry.setAttribute('ao', new THREE.BufferAttribute(new Float32Array(data.aos), 1));
+    geometry.setAttribute('light', new THREE.BufferAttribute(new Float32Array(data.lights), 1));
     geometry.setIndex(new THREE.BufferAttribute(new Uint32Array(data.indices), 1));
 
     geometry.computeBoundingSphere();
@@ -447,6 +473,7 @@ export class ChunkManager {
           id,
           transparent: true,
           solid: false,
+          lightEmission: 0,
           faceTextures: { top: 0, bottom: 0, side: 0 },
         });
         continue;
@@ -461,6 +488,7 @@ export class ChunkManager {
         id,
         transparent: block.transparent,
         solid: block.solid,
+        lightEmission: block.lightEmission,
         faceTextures: {
           top: getTextureIndex(topTex),
           bottom: getTextureIndex(bottomTex),

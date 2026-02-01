@@ -32,6 +32,7 @@ Open `http://localhost:5173/` in your browser. Click the canvas to lock the poin
 ## Features
 
 - **Procedural terrain** with biomes (plains, forest, desert, taiga, mountains, ocean, beach, tundra), caves, ore veins, and trees
+- **Per-block lighting** -- sunlight column propagation, BFS flood-fill for sunlight spread and torch light, Minecraft-style face shading
 - **Greedy meshing** with ambient occlusion for efficient chunk rendering
 - **Web Worker** off-thread chunk meshing via a worker pool
 - **First-person physics** with AABB collision (Y-X-Z swept resolution), gravity, and fall damage
@@ -84,7 +85,8 @@ src/
 ## Key Algorithms
 
 - **Terrain:** Multi-octave 2D simplex noise heightmap + 3D noise cheese/spaghetti caves
-- **Meshing:** Greedy meshing (Mikola Lysenko / 0fps algorithm) with per-vertex AO
+- **Lighting:** Column sunlight scan + BFS flood-fill (sunlight + block light), packed nibble storage
+- **Meshing:** Greedy meshing (Mikola Lysenko / 0fps algorithm) with per-vertex AO + light
 - **Collision:** Swept AABB resolved per-axis (Y, X, Z)
 - **Raycast:** DDA voxel traversal (Amanatides & Woo)
 - **Mob AI:** State machine (IDLE / WANDER / CHASE / ATTACK / FLEE)
@@ -165,11 +167,11 @@ Deployment to GitHub Pages is automatic via `.github/workflows/deploy.yml` on pu
 - [x] Mob drops & combat -- mobs drop items on death; melee attack with sword knockback
 - [x] Furnace smelting -- smelt ores into ingots via furnace UI with fuel, progress bar, and cooked food
 - [x] Right-click functional blocks -- crafting table and furnace open their UIs on right-click
+- [x] Per-block lighting engine -- sunlight propagation, torch BFS flood-fill, Minecraft-style face shading
 
 ### Mid-term
 
 - [ ] **Infinite world** -- stream chunks in/out based on player position (currently pre-generated radius)
-- [ ] **Lighting engine** -- per-block light levels (sunlight + torch propagation) with smooth AO
 - [ ] **Water physics** -- flowing water that spreads from source blocks
 - [ ] **Redstone basics** -- levers, buttons, pressure plates, doors
 - [ ] **More biomes** -- jungle, swamp, mushroom island, mesa

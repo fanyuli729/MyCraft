@@ -48,4 +48,7 @@ export interface Block {
 
   /** Texture name(s) used to look up UV coordinates in the texture atlas. */
   textureFaces: BlockTextureFaces;
+
+  /** Light emission level (0 = none, 14 = torch). */
+  lightEmission: number;
 }

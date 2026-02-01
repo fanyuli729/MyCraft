@@ -30,6 +30,7 @@ export interface BlockInfo {
   id: number;
   transparent: boolean;
   solid: boolean;
+  lightEmission: number;
   /** Texture atlas flat index for each face. */
   faceTextures: {
     top: number;
@@ -44,6 +45,7 @@ export interface MeshData {
   normals: Float32Array;
   uvs: Float32Array;
   aos: Float32Array;
+  lights: Float32Array;
   indices: Uint32Array;
 }
 
@@ -100,6 +102,41 @@ function getBlockOrNeighbor(
   const key = `${nx},${nz}`;
   const nb = neighbors[key];
   if (!nb) return 0;
+  return nb[blockIndex(sx, ly, sz)];
+}
+
+/**
+ * Sample a light byte that might be in a neighbouring chunk.
+ * Returns the packed light byte (high nibble = sun, low = block).
+ * Defaults to full sunlight (0xF0) for out-of-bounds / missing neighbours.
+ */
+function getLightOrNeighbor(
+  light: Uint8Array,
+  lx: number,
+  ly: number,
+  lz: number,
+  neighborLights: { [key: string]: Uint8Array | null },
+): number {
+  if (ly >= CHUNK_HEIGHT) return 0xF0; // above world = full sunlight
+  if (ly < 0) return 0x00; // below world = dark
+
+  let nx = 0;
+  let nz = 0;
+  let sx = lx;
+  let sz = lz;
+
+  if (lx < 0) { nx = -1; sx = lx + CHUNK_SIZE; }
+  else if (lx >= CHUNK_SIZE) { nx = 1; sx = lx - CHUNK_SIZE; }
+  if (lz < 0) { nz = -1; sz = lz + CHUNK_SIZE; }
+  else if (lz >= CHUNK_SIZE) { nz = 1; sz = lz - CHUNK_SIZE; }
+
+  if (nx === 0 && nz === 0) {
+    return light[blockIndex(sx, ly, sz)];
+  }
+
+  const key = `${nx},${nz}`;
+  const nb = neighborLights[key];
+  if (!nb) return 0xF0; // full sunlight for unloaded neighbours
   return nb[blockIndex(sx, ly, sz)];
 }
 
@@ -295,6 +332,7 @@ interface TempArrays {
   normals: number[];
   uvs: number[];
   aos: number[];
+  lights: number[];
   indices: number[];
   vertexCount: number;
 }
@@ -305,6 +343,7 @@ function createTemp(): TempArrays {
     normals: [],
     uvs: [],
     aos: [],
+    lights: [],
     indices: [],
     vertexCount: 0,
   };
@@ -316,6 +355,7 @@ function pushQuad(
   normal: number[],
   uv: number[], // [u0, v0, u1, v1]
   ao: [number, number, number, number],
+  faceLight: number,
 ): void {
   const i = tmp.vertexCount;
 
@@ -343,6 +383,9 @@ function pushQuad(
   // AO
   tmp.aos.push(ao[0], ao[1], ao[2], ao[3]);
 
+  // Per-vertex light (packed byte: high nibble sun, low nibble block)
+  tmp.lights.push(faceLight, faceLight, faceLight, faceLight);
+
   // Indices -- two triangles per quad.
   // Flip the diagonal when AO requires it to avoid visible seam artifacts.
   if (ao[0] + ao[2] > ao[1] + ao[3]) {
@@ -360,6 +403,7 @@ function toMeshData(tmp: TempArrays): MeshData {
     normals: new Float32Array(tmp.normals),
     uvs: new Float32Array(tmp.uvs),
     aos: new Float32Array(tmp.aos),
+    lights: new Float32Array(tmp.lights),
     indices: new Uint32Array(tmp.indices),
   };
 }
@@ -384,6 +428,8 @@ export function meshChunk(
   cz: number,
   neighborBlocks: { [key: string]: Uint8Array | null },
   blockInfo: BlockInfo[],
+  light: Uint8Array,
+  neighborLights: { [key: string]: Uint8Array | null },
 ): { opaque: MeshData; transparent: MeshData } {
   const opaque = createTemp();
   const transparent = createTemp();
@@ -462,7 +508,8 @@ export function meshChunk(
           }
 
           if (visible) {
-            mask[v * uSize + u] = blockId;
+            const faceLight = getLightOrNeighbor(light, nlx, nly, nlz, neighborLights);
+            mask[v * uSize + u] = blockId | (faceLight << 8);
           }
         }
       }
@@ -470,15 +517,15 @@ export function meshChunk(
       // Greedy merge the mask
       for (let v = 0; v < vSize; v++) {
         for (let u = 0; u < uSize; ) {
-          const blockId = mask[v * uSize + u];
-          if (blockId === 0) {
+          const maskVal = mask[v * uSize + u];
+          if (maskVal === 0) {
             u++;
             continue;
           }
 
           // Determine width (along u)
           let w = 1;
-          while (u + w < uSize && mask[v * uSize + u + w] === blockId) {
+          while (u + w < uSize && mask[v * uSize + u + w] === maskVal) {
             w++;
           }
 
@@ -487,7 +534,7 @@ export function meshChunk(
           let canExtend = true;
           while (v + h < vSize && canExtend) {
             for (let wu = 0; wu < w; wu++) {
-              if (mask[(v + h) * uSize + u + wu] !== blockId) {
+              if (mask[(v + h) * uSize + u + wu] !== maskVal) {
                 canExtend = false;
                 break;
               }
@@ -502,7 +549,9 @@ export function meshChunk(
             }
           }
 
-          // Emit the quad
+          // Emit the quad -- extract block id and face light from mask
+          const blockId = maskVal & 0xFF;
+          const faceLight = (maskVal >> 8) & 0xFF;
           const info = blockInfo[blockId];
           const texIndex = info.faceTextures[faceKey];
 
@@ -576,7 +625,7 @@ export function meshChunk(
           );
 
           const target = info.transparent ? transparent : opaque;
-          pushQuad(target, v0, v1, v2, v3, norm, uv, ao);
+          pushQuad(target, v0, v1, v2, v3, norm, uv, ao, faceLight);
 
           u += w;
         }

@@ -37,6 +37,7 @@ interface TransferableMeshData {
   normals: ArrayBuffer;
   uvs: ArrayBuffer;
   aos: ArrayBuffer;
+  lights: ArrayBuffer;
   indices: ArrayBuffer;
   vertexCount: number;
   indexCount: number;
@@ -48,6 +49,7 @@ function toTransferable(md: MeshData): TransferableMeshData {
     normals: md.normals.buffer as ArrayBuffer,
     uvs: md.uvs.buffer as ArrayBuffer,
     aos: md.aos.buffer as ArrayBuffer,
+    lights: md.lights.buffer as ArrayBuffer,
     indices: md.indices.buffer as ArrayBuffer,
     vertexCount: md.positions.length / 3,
     indexCount: md.indices.length,
@@ -75,7 +77,17 @@ self.onmessage = (evt: MessageEvent) => {
 
     const blockInfo: BlockInfo[] = data.blockInfo;
 
-    const result = meshChunk(blocks, data.chunkX, data.chunkZ, neighbors, blockInfo);
+    // Reconstruct light data
+    const light = data.light ? new Uint8Array(data.light) : new Uint8Array(blocks.length);
+    const neighborLights: { [key: string]: Uint8Array | null } = {};
+    if (data.neighborLights) {
+      for (const key of Object.keys(data.neighborLights)) {
+        const buf = data.neighborLights[key];
+        neighborLights[key] = buf ? new Uint8Array(buf) : null;
+      }
+    }
+
+    const result = meshChunk(blocks, data.chunkX, data.chunkZ, neighbors, blockInfo, light, neighborLights);
 
     const opaqueT = toTransferable(result.opaque);
     const transparentT = toTransferable(result.transparent);
@@ -86,11 +98,13 @@ self.onmessage = (evt: MessageEvent) => {
       opaqueT.normals,
       opaqueT.uvs,
       opaqueT.aos,
+      opaqueT.lights,
       opaqueT.indices,
       transparentT.positions,
       transparentT.normals,
       transparentT.uvs,
       transparentT.aos,
+      transparentT.lights,
       transparentT.indices,
     ];
 

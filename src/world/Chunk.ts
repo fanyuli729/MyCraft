@@ -27,6 +27,13 @@ export class Chunk {
   readonly data: Uint8Array;
 
   /**
+   * Per-block light data.  Each byte packs two nibbles:
+   *   high nibble (bits 4-7) = sunlight level 0-15
+   *   low  nibble (bits 0-3) = block light level 0-15
+   */
+  readonly light: Uint8Array;
+
+  /**
    * When true the chunk's mesh is out of date and needs to be rebuilt.
    * Set automatically by {@link setBlock}; cleared by the mesher.
    */
@@ -36,6 +43,7 @@ export class Chunk {
     this.cx = cx;
     this.cz = cz;
     this.data = new Uint8Array(CHUNK_VOLUME);
+    this.light = new Uint8Array(CHUNK_VOLUME);
     this.dirty = true;
   }
 

@@ -20,6 +20,7 @@ class BlockRegistryImpl {
     hardness: number,
     toolType: ToolType,
     textureFaces: BlockTextureFaces,
+    lightEmission = 0,
   ): void {
     this.blocks.set(id, {
       id,
@@ -29,6 +30,7 @@ class BlockRegistryImpl {
       hardness,
       toolType,
       textureFaces,
+      lightEmission,
     });
   }
 
@@ -217,6 +219,7 @@ BlockRegistry.register(
 BlockRegistry.register(
   BlockType.TORCH, 'Torch', true, false, 0, 'none',
   { all: 'torch' },
+  14,
 );
 
 BlockRegistry.register(

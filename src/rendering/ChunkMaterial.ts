@@ -6,16 +6,19 @@ import * as THREE from 'three';
 
 const vertexShader = /* glsl */ `
   attribute float ao;
+  attribute float light;
 
   varying vec2 vUv;
   varying vec3 vWorldPosition;
   varying vec3 vNormal;
   varying float vAo;
+  varying float vLight;
 
   void main() {
     vUv = uv;
     vNormal = normalMatrix * normal;
     vAo = ao;
+    vLight = light;
 
     vec4 worldPos = modelMatrix * vec4(position, 1.0);
     vWorldPosition = worldPos.xyz;
@@ -39,11 +42,9 @@ const fragmentShader = /* glsl */ `
   varying vec3 vWorldPosition;
   varying vec3 vNormal;
   varying float vAo;
+  varying float vLight;
 
   void main() {
-    // Sample atlas -- the UV is already set to the correct sub-region by the mesher.
-    // Use fract() on the fractional part to allow tiling within the tile region
-    // (not needed for greedy mesh since UVs are pre-computed, but kept for safety).
     vec4 texColor = texture2D(atlasTexture, vUv);
 
     // Discard fully-transparent fragments
@@ -51,16 +52,31 @@ const fragmentShader = /* glsl */ `
       discard;
     }
 
-    // Simple directional lighting (sun coming from above at slight angle)
-    vec3 sunDir = normalize(vec3(0.3, 1.0, 0.2));
-    float nDotL = max(dot(normalize(vNormal), sunDir), 0.0);
-    float lighting = 0.4 + 0.6 * nDotL;
+    // Decode per-vertex light (packed byte: high nibble = sun, low = block)
+    float sunLevel = floor(vLight / 16.0);
+    float blockLevel = vLight - sunLevel * 16.0;
+    sunLevel /= 15.0;   // normalise to 0..1
+    blockLevel /= 15.0;
 
-    // Apply ambient occlusion
+    // Effective light = max of (sunlight * time-of-day, block light)
+    float effectiveLight = max(sunLevel * sunlightIntensity, blockLevel);
+
+    // Minecraft-style face-direction brightness multiplier
+    vec3 n = normalize(vNormal);
+    float faceBrightness;
+    if (abs(n.y) > 0.5) {
+      faceBrightness = n.y > 0.0 ? 1.0 : 0.5;  // top / bottom
+    } else if (abs(n.x) > abs(n.z)) {
+      faceBrightness = 0.6;  // east / west
+    } else {
+      faceBrightness = 0.8;  // north / south
+    }
+
+    // Ambient occlusion
     float aoFactor = mix(0.5, 1.0, vAo);
 
-    // Apply sunlight intensity (day/night cycle)
-    float brightness = lighting * aoFactor * sunlightIntensity;
+    // Final brightness: per-block light * face shading * AO, with min ambient
+    float brightness = max(effectiveLight, 0.05) * faceBrightness * aoFactor;
 
     vec3 color = texColor.rgb * brightness;
 
@@ -88,6 +104,7 @@ const transparentFragmentShader = /* glsl */ `
   varying vec3 vWorldPosition;
   varying vec3 vNormal;
   varying float vAo;
+  varying float vLight;
 
   void main() {
     vec4 texColor = texture2D(atlasTexture, vUv);
@@ -96,13 +113,27 @@ const transparentFragmentShader = /* glsl */ `
       discard;
     }
 
-    // Simple directional lighting
-    vec3 sunDir = normalize(vec3(0.3, 1.0, 0.2));
-    float nDotL = max(dot(normalize(vNormal), sunDir), 0.0);
-    float lighting = 0.4 + 0.6 * nDotL;
+    // Decode per-vertex light
+    float sunLevel = floor(vLight / 16.0);
+    float blockLevel = vLight - sunLevel * 16.0;
+    sunLevel /= 15.0;
+    blockLevel /= 15.0;
+
+    float effectiveLight = max(sunLevel * sunlightIntensity, blockLevel);
+
+    // Face-direction brightness
+    vec3 n = normalize(vNormal);
+    float faceBrightness;
+    if (abs(n.y) > 0.5) {
+      faceBrightness = n.y > 0.0 ? 1.0 : 0.5;
+    } else if (abs(n.x) > abs(n.z)) {
+      faceBrightness = 0.6;
+    } else {
+      faceBrightness = 0.8;
+    }
 
     float aoFactor = mix(0.5, 1.0, vAo);
-    float brightness = lighting * aoFactor * sunlightIntensity;
+    float brightness = max(effectiveLight, 0.05) * faceBrightness * aoFactor;
 
     vec3 color = texColor.rgb * brightness;
 
