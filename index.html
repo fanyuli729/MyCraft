@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MyCraft</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #000;
+      font-family: 'Courier New', monospace;
+    }
+    #game-canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    #ui-root {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 10;
+    }
+    #loading-screen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: #2c2c2c;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 24px;
+      z-index: 1000;
+    }
+    #loading-screen .title {
+      font-size: 48px;
+      font-weight: bold;
+      margin-bottom: 20px;
+      color: #5b8731;
+    }
+    #loading-screen .progress {
+      width: 300px;
+      height: 6px;
+      background: #444;
+      border-radius: 3px;
+      margin-top: 10px;
+    }
+    #loading-screen .progress-bar {
+      height: 100%;
+      background: #5b8731;
+      border-radius: 3px;
+      width: 0%;
+      transition: width 0.3s;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="game-canvas"></canvas>
+  <div id="ui-root"></div>
+  <div id="loading-screen">
+    <div class="title">MyCraft</div>
+    <div id="loading-text">Loading...</div>
+    <div class="progress">
+      <div class="progress-bar" id="loading-bar"></div>
+    </div>
+  </div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
